@@ -2,24 +2,20 @@ package services.impl;
 
 import api.PlanViewDto;
 import api.PlannerService;
-import dao.*;
+import dao.FormDao;
+import dao.LineDao;
+import dao.ProductionDao;
 import entities.FormEntity;
 import entities.LineEntity;
 import entities.ProductionEntity;
-import entities.ShortageEntity;
-import external.CurrentStock;
-import external.JiraService;
-import external.NotificationsService;
-import external.StockService;
-import shortages.BetterShortageFinder;
+import shortages.ShortagesService;
 import tools.Util;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class PlannerServiceImpl implements PlannerService {
 
@@ -27,16 +23,7 @@ public class PlannerServiceImpl implements PlannerService {
     private ProductionDao productionDao;
     private LineDao lineDao;
     private FormDao formDao;
-    private ShortageDao shortageDao;
-    private StockService stockService;
-    private DemandDao demandDao;
-
-    private NotificationsService notificationService;
-    private JiraService jiraService;
-    private Clock clock;
-
-    private int confShortagePredictionDaysAhead;
-    private long confIncreaseQATaskPriorityInDays;
+    private ShortagesService shortages;
 
     /**
      * <pre>
@@ -111,7 +98,7 @@ public class PlannerServiceImpl implements PlannerService {
         productionDao.save(newScheduled);
 
         // Shortages may arise if insufficient production was planned.
-        processShortages(changed);
+        shortages.processShortagesFromPlanning(changed.stream().map(p -> p.getForm().getRefNo()).collect(Collectors.toList()));
     }
 
     /**
@@ -146,7 +133,7 @@ public class PlannerServiceImpl implements PlannerService {
         production.setDuration(duration);
 
         // Shortages may arise if insufficient production was planned.
-        processShortages(changed);
+        shortages.processShortagesFromPlanning(changed.stream().map(p -> p.getForm().getRefNo()).collect(Collectors.toList()));
     }
 
     //Transactional
@@ -234,35 +221,4 @@ public class PlannerServiceImpl implements PlannerService {
                 ;
     }
 
-    // TODO REFACTOR: Step 1. move method to ShortagesService
-    private void processShortages(List<ProductionEntity> products) {
-        LocalDate today = LocalDate.now(clock);
-
-        for (ProductionEntity production : products) {
-            // TODO REFACTOR: Step 2. BetterShortageFinder into stateful immutable object
-            // TODO REFACTOR: Step 3. close creation of BetterShortageFinder in ShortageFinderRepository
-            // TODO REFACTOR: Step 4. introduce Shortages value object (returned from BetterShortageFinder.findShortages
-            // TODO REFACTOR: Step 5. introduce ShortagesRepository persisting and retrieving Shortages instance
-            CurrentStock currentStock = stockService.getCurrentStock(production.getForm().getRefNo());
-            List<ShortageEntity> shortages = BetterShortageFinder.findShortages(
-                    today, confShortagePredictionDaysAhead,
-                    currentStock,
-                    productionDao.findFromTime(production.getForm().getRefNo(), today.atStartOfDay()),
-                    demandDao.findFrom(today.atStartOfDay(), production.getForm().getRefNo())
-            );
-            List<ShortageEntity> previous = shortageDao.getForProduct(production.getForm().getRefNo());
-            if (!shortages.isEmpty() && !shortages.equals(previous)) {
-                notificationService.markOnPlan(shortages);
-                if (currentStock.getLocked() > 0 &&
-                        shortages.get(0).getAtDay()
-                                .isBefore(today.plusDays(confIncreaseQATaskPriorityInDays))) {
-                    jiraService.increasePriorityFor(production.getForm().getRefNo());
-                }
-                shortageDao.save(shortages);
-            }
-            if (shortages.isEmpty() && !previous.isEmpty()) {
-                shortageDao.delete(production.getForm().getRefNo());
-            }
-        }
-    }
 }
