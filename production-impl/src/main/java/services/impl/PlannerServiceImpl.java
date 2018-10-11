@@ -11,7 +11,7 @@ import external.CurrentStock;
 import external.JiraService;
 import external.NotificationsService;
 import external.StockService;
-import tools.ShortageFinder;
+import shortages.BetterShortageFinder;
 import tools.Util;
 
 import java.time.Clock;
@@ -234,12 +234,17 @@ public class PlannerServiceImpl implements PlannerService {
                 ;
     }
 
+    // TODO REFACTOR: Step 1. move method to ShortagesService
     private void processShortages(List<ProductionEntity> products) {
         LocalDate today = LocalDate.now(clock);
 
         for (ProductionEntity production : products) {
+            // TODO REFACTOR: Step 2. BetterShortageFinder into stateful immutable object
+            // TODO REFACTOR: Step 3. close creation of BetterShortageFinder in ShortageFinderRepository
+            // TODO REFACTOR: Step 4. introduce Shortages value object (returned from BetterShortageFinder.findShortages
+            // TODO REFACTOR: Step 5. introduce ShortagesRepository persisting and retrieving Shortages instance
             CurrentStock currentStock = stockService.getCurrentStock(production.getForm().getRefNo());
-            List<ShortageEntity> shortages = ShortageFinder.findShortages(
+            List<ShortageEntity> shortages = BetterShortageFinder.findShortages(
                     today, confShortagePredictionDaysAhead,
                     currentStock,
                     productionDao.findFromTime(production.getForm().getRefNo(), today.atStartOfDay()),

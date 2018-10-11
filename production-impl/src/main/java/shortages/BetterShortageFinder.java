@@ -1,4 +1,4 @@
-package tools;
+package shortages;
 
 import entities.DemandEntity;
 import entities.ProductionEntity;
@@ -6,6 +6,7 @@ import entities.ShortageEntity;
 import enums.DeliverySchema;
 import external.CurrentStock;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import tools.Util;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -69,11 +70,11 @@ public class BetterShortageFinder {
     }
 
     interface Calculation {
-        Calculation AT_DAY_START = (long level, long produced, long demand)
+        Calculation AT_DAY_START = (level, produced, demand)
                 -> level - demand;
-        Calculation TILL_DAY_END = (long level, long produced, long demand)
+        Calculation TILL_DAY_END = (level, produced, demand)
                 -> level - demand + produced;
-        Calculation CALCULATION_NOT_IMPLEMENTED = (long level, long produced, long demand) -> {
+        Calculation CALCULATION_NOT_IMPLEMENTED = (level, produced, demand) -> {
             throw new NotImplementedException();
         };
 
